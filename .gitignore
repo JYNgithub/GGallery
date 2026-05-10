@@ -1,0 +1,12 @@
+**/.env
+**/__pycache__/
+.venv/
+data/
+etc/
+admin/
+NOTES.md
+TODO.md
+frontend/.web
+frontend/.states
+frontend/*.py[cod]
+
