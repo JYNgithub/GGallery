@@ -258,9 +258,10 @@ class State(rx.State):
                     headers=HEADERS,
                 )
                 if res.status_code == 200:
-                    ext = file.filename.split('.')[-1].lower()
+                    returned_key = res.json()["key"]
+                    ext = returned_key.split('.')[-1].lower()
                     if ext in IMAGE_EXTS:
-                        url = f"{BACKEND_ENTRY}/object/{file.filename}?query_key={API_KEY}"
+                        url = f"{BACKEND_ENTRY}/object/{returned_key}?query_key={API_KEY}"
                     elif ext in VIDEO_EXTS:
                         url = "__video__"
                     self.media_keys.insert(0, file.filename)       # ← prepend to keys (newest first)
