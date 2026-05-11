@@ -22,6 +22,7 @@ from contextlib import asynccontextmanager
 from configuration import *
 
 # Load credentials
+# load_dotenv("../.env.dev")
 load_dotenv()
 API_KEY = os.getenv("API_KEY") # Backend access API key authentication
 SECRET_SIGNING_KEY = os.getenv("SECRET_SIGNING_KEY") # Secret key for signing URLs
@@ -44,7 +45,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_ENTRY"), os.getenv("FRONTEND_URL")],
+    # allow_origins=[os.getenv("FRONTEND_ENTRY"), os.getenv("FRONTEND_URL")],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
