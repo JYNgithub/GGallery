@@ -9,6 +9,7 @@ from reflex_intersection_observer import intersection_observer
 from configuration import *
 
 # Load credentials
+# load_dotenv("../.env.dev")
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
 PIN_NUMBER = os.getenv("PIN_NUMBER")
@@ -410,7 +411,7 @@ def navbar():
         background="var(--gray-1)",
     )
 
-def format_button(icon: str, label: str, dialog_func=None, click_func=None, disabled_condition=None, color_scheme=None):
+def action_button(icon: str, label: str, dialog_func=None, click_func=None, disabled_condition=None, color_scheme=None):
     """
     Standardized circular action button for floating menu
     Either opens a dialog (dialog_func) or executes an action (click_func)
@@ -419,37 +420,37 @@ def format_button(icon: str, label: str, dialog_func=None, click_func=None, disa
     if dialog_func is not None:
         # Button opens a dialog
         button_content = rx.button(
-            rx.icon(icon, size=20),
+            rx.icon(icon, size=23),
             on_click=lambda: State.set_current_dialog(label.lower()),
             size="3",
             border_radius="50%",
-            width="56px",
-            height="56px",
+            width="64px",
+            height="64px",
             disabled=disabled_condition if disabled_condition is not None else False,
-            color_scheme=color_scheme if color_scheme is not None else "blue",
+            color_scheme=color_scheme if color_scheme is not None else "indigo"
         )
     else:
         # Button executes direct action
         button_content = rx.button(
-            rx.icon(icon, size=20),
+            rx.icon(icon, size=23),
             on_click=click_func,
             size="3",
             border_radius="50%",
-            width="56px",
-            height="56px",
+            width="64px",
+            height="64px",
             disabled=disabled_condition if disabled_condition is not None else False,
-            color_scheme=color_scheme if color_scheme is not None else "blue",
+            color_scheme=color_scheme if color_scheme is not None else "indigo"
         )
     
     return rx.box(
         button_content,
-        rx.text(label, font_size="0.75em", color="gray", margin_top="4px"),
+        # rx.text(label, font_size="0.75em", color="gray", margin_top="4px"),
         display="flex",
         flex_direction="column",
         align_items="center",
     )
 
-def floating_action_menu():
+def main_action_button():
     return rx.box(
         # Render all dialogs (hidden until opened)
         filter_dialog(),
@@ -461,61 +462,59 @@ def floating_action_menu():
         rx.cond(
             State.show_floating_menu,
             rx.vstack(
-                format_button(
-                    icon="filter",
-                    label="Filter",
-                    dialog_func=True,
-                ),
-                format_button(
-                    icon="settings",
-                    label="Settings",
-                    dialog_func=True,
-                ),
-                format_button(
-                    icon="upload",
-                    label="Upload",
-                    dialog_func=True,
-                ),
-                format_button(
-                    icon="tag",
-                    label="Tag",
-                    dialog_func=True,
-                    disabled_condition=rx.cond(State.selected_items.length() == 0, True, False),
-                    color_scheme=rx.cond(State.selected_items.length() > 0, "blue", "gray"),
-                ),
-                format_button(
+                action_button(
                     icon="trash-2",
                     label="Delete",
                     click_func=State.delete_selected_items,
                     disabled_condition=rx.cond(State.selected_items.length() == 0, True, False),
-                    color_scheme=rx.cond(State.selected_items.length() > 0, "red", "gray"),
+                    color_scheme=rx.cond(State.selected_items.length() > 0, "indigo", "gray"),
                 ),
-                format_button(
+                action_button(
+                    icon="tag",
+                    label="Tag",
+                    dialog_func=True,
+                    disabled_condition=rx.cond(State.selected_items.length() == 0, True, False),
+                    color_scheme=rx.cond(State.selected_items.length() > 0, "indigo", "gray"),
+                ),
+                action_button(
                     icon="mouse-pointer-click",
                     label="Select",
                     click_func=State.toggle_selection_mode,
-                    color_scheme=rx.cond(State.selection_mode, "blue", "gray"),
+                    color_scheme=rx.cond(State.selection_mode, "red", "indigo"),
+                ),
+                action_button(
+                    icon="settings",
+                    label="Settings",
+                    dialog_func=True,
+                ),
+                action_button(
+                    icon="filter",
+                    label="Filter",
+                    dialog_func=True,
+                ),
+                action_button(
+                    icon="upload",
+                    label="Upload",
+                    dialog_func=True,
                 ),
                 spacing="3",
                 margin_bottom="1em",
             ),
         ),
-        
         # Main floating button
         rx.button(
-            rx.icon("sparkles", size=24),
+            rx.icon("sparkles", size=30),
             on_click=State.toggle_floating_menu,
             size="4",
             border_radius="50%",
-            width="64px",
-            height="64px",
-            box_shadow="0 4px 12px rgba(0,0,0,0.15)",
-            color_scheme="blue",
+            width="80px",
+            height="80px",
+            box_shadow="0 0 12px 2px rgba(255, 255, 255, 0.4)",
+            color_scheme="indigo",
         ),
-        
         position="fixed",
-        bottom="24px",
-        right="24px",
+        bottom="124px",
+        right="48px",
         z_index="99",
         display="flex",
         flex_direction="column",
@@ -838,9 +837,26 @@ def lightbox():
                     rx.vstack(
                         rx.hstack(
                             rx.text(State.selected_file, font_weight="bold", color="white"),
+                            rx.button(
+                                "i",
+                                on_click=State.load_metadata,
+                                margin_top="2px",
+                                style={
+                                    "borderRadius": "100%",
+                                    "width": "22px",
+                                    "height": "22px",
+                                    "minWidth": "22px",
+                                    "background": "transparent",
+                                    "border": "2px solid gray",
+                                    "color": "gray",
+                                    "fontSize": "14px",
+                                    "fontStyle": "italic",
+                                    "fontWeight": "bold",
+                                    "padding": "0",
+                                    "cursor": "pointer",
+                                },
+                            ),
                             rx.spacer(),
-                            rx.button("Info", size="2", on_click=State.load_metadata),
-                            rx.button("Delete", color_scheme="red", size="2", on_click=State.delete_selected),
                             rx.button("✕", on_click=State.close_lightbox, variant="ghost", color="white"),
                             width="100%",
                             padding="1em",
@@ -882,7 +898,7 @@ def lightbox():
                     ),
                     flex="1",
                 ),
-                # Right: metadata panel (same as before)
+                # Right: metadata panel
                 rx.cond(
                     State.show_metadata,
                     rx.box(
@@ -921,6 +937,7 @@ def lightbox():
             on_click=State.close_lightbox,
         ),
     )
+
 
 def auth_guard(content: rx.Component) -> rx.Component:
     return rx.cond(
@@ -970,7 +987,7 @@ def gallery():
         rx.box(
             lightbox(),
             navbar(),
-            floating_action_menu(),
+            main_action_button(),
             rx.cond(
                 State.is_loading_gallery,
                 rx.center(
