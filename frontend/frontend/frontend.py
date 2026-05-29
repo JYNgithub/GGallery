@@ -146,7 +146,7 @@ class State(rx.State):
                 if res.status_code == 200:
                     stream_path = res.json()['url']
                     full_url = f"{BACKEND_ENTRY}{stream_path}&query_key={API_KEY}"
-                    self.selected_url = f"{BACKEND_ENTRY}{stream_path}"
+                    self.selected_url = full_url
                 else:
                     self.selected_url = ""
             except Exception as e:

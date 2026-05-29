@@ -7,7 +7,7 @@ import reflex as rx
 
 config = rx.Config(
     app_name="frontend",
-    api_url="http://localhost:8001",
+    api_url="http://localhost:3000",
     plugins=[
         rx.plugins.SitemapPlugin(),
         rx.plugins.TailwindV4Plugin(),
