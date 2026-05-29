@@ -1,7 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Security, Request, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
-from fastapi.security.api_key import APIKeyHeader
 from sshtunnel import SSHTunnelForwarder
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -22,8 +21,8 @@ from contextlib import asynccontextmanager
 from configuration import *
 
 # Load credentials
-# load_dotenv("../.env.dev")
-load_dotenv()
+load_dotenv("../.env")
+# load_dotenv()
 API_KEY = os.getenv("API_KEY") # Backend access API key authentication
 SECRET_SIGNING_KEY = os.getenv("SECRET_SIGNING_KEY") # Secret key for signing URLs
 DB_SCHEMA = os.getenv("DB_SCHEMA")
@@ -340,8 +339,9 @@ def stream_object(
     filename: str, 
     expires: int = Query(...), 
     signature: str = Query(...), 
-    range: str = Header(None)
+    range: str = Header(None),
 ):
+    
     ext = filename.split('.')[-1].lower()
     if ext not in MEDIA_TYPES:
         raise HTTPException(status_code=415, detail=f"Unsupported file type")
@@ -350,46 +350,50 @@ def stream_object(
         raise HTTPException(status_code=403, detail="Invalid or expired URL")
     
     try:
-        # Get object metadata first
+        # Get file size
         head_response = s3_client.head_object(Bucket=BUCKET_NAME, Key=filename)
         file_size = head_response['ContentLength']
+        
+        # Parse range header
+        start = 0
+        end = file_size - 1
         
         if range:
             range_match = range.replace("bytes=", "").split("-")
             start = int(range_match[0]) if range_match[0] else 0
             end = int(range_match[1]) if len(range_match) > 1 and range_match[1] else file_size - 1
             end = min(end, file_size - 1)
-            
-            # Download only the requested range
+        
+        # Stream the content
+        def stream_content():
             response = s3_client.get_object(
-                Bucket=BUCKET_NAME, 
+                Bucket=BUCKET_NAME,
                 Key=filename,
                 Range=f'bytes={start}-{end}'
             )
-            chunk = response['Body'].read()
-            
-            headers = {
-                "Content-Range": f"bytes {start}-{end}/{file_size}",
-                "Accept-Ranges": "bytes",
-                "Content-Length": str(len(chunk)),
-                "Content-Type": MEDIA_TYPES[ext],
-            }
-            return Response(content=chunk, status_code=206, headers=headers)
-        
-        # Full file request
-        response = s3_client.get_object(Bucket=BUCKET_NAME, Key=filename)
-        data = response['Body'].read()
+            for chunk in response['Body'].iter_chunks(chunk_size=8192):
+                yield chunk
         
         headers = {
-            "Accept-Ranges": "bytes",
             "Content-Type": MEDIA_TYPES[ext],
-            "Content-Length": str(file_size),
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(end - start + 1),
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
         }
-        return Response(content=data, headers=headers)
+        
+        if range:
+            headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+            return StreamingResponse(stream_content(), status_code=206, headers=headers)
+        
+        return StreamingResponse(stream_content(), headers=headers)
+        
     except Exception as e:
+        logger.error(f"Streaming error: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
+    
 # Add endpoint to generate signed URL
 @app.get("/object/{filename}/stream-url")
 def get_stream_url(filename: str, _ = Security(verify_api_key)):

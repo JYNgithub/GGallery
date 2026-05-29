@@ -9,8 +9,8 @@ from reflex_intersection_observer import intersection_observer
 from configuration import *
 
 # Load credentials
-# load_dotenv("../.env.dev")
-load_dotenv()
+load_dotenv("../.env")
+# load_dotenv()
 API_KEY = os.getenv("API_KEY")
 PIN_NUMBER = os.getenv("PIN_NUMBER")
 BACKEND_INTERNAL_URL = os.getenv("BACKEND_INTERNAL_URL")
@@ -144,10 +144,12 @@ class State(rx.State):
             try:
                 res = requests.get(f"{BACKEND_INTERNAL_URL}/object/{filename}/stream-url", headers=HEADERS)
                 if res.status_code == 200:
-                    self.selected_url = f"{BACKEND_INTERNAL_URL}{res.json()['url']}"
+                    stream_path = res.json()['url']
+                    full_url = f"{BACKEND_ENTRY}{stream_path}&query_key={API_KEY}"
+                    self.selected_url = f"{BACKEND_ENTRY}{stream_path}"
                 else:
                     self.selected_url = ""
-            except Exception:
+            except Exception as e:
                 self.selected_url = ""
         else:
             self.selected_url = self.loaded_urls.get(filename, "")
@@ -246,11 +248,11 @@ class State(rx.State):
         counts = Counter(exts)
         self.selected_file_count = len(files)
         self.selected_file_summary = ", ".join(f"{v} {k}" for k, v in counts.items())
-        yield  # flush spinner to UI
+        yield
         failed = 0
         for file in files:
             self.upload_current += 1
-            yield  # update counter in UI
+            yield
             data = await file.read()
             try:
                 res = requests.post(
@@ -265,8 +267,8 @@ class State(rx.State):
                         url = f"{BACKEND_ENTRY}/object/{returned_key}?query_key={API_KEY}"
                     elif ext in VIDEO_EXTS:
                         url = "__video__"
-                    self.media_keys.insert(0, file.filename)       # ← prepend to keys (newest first)
-                    self.loaded_urls[file.filename] = url           # ← store url in dict
+                    self.media_keys.insert(0, returned_key)
+                    self.loaded_urls[returned_key] = url
                 else:
                     failed += 1
             except Exception:
@@ -276,7 +278,7 @@ class State(rx.State):
             self.upload_status = [f"{failed} file(s) failed to upload."]
         else:
             self.upload_status = ["done"]
-        yield  # final flush
+        yield
 
     def set_column_count(self, count: int):
         """Set the number of columns for the grid"""
@@ -339,34 +341,34 @@ def status_indicator():
     return rx.hstack(
         rx.cond(
             State.backend_ok,
-            rx.box(width="10px", height="10px", border_radius="50%", background="green"),
-            rx.box(width="10px", height="10px", border_radius="50%", background="red"),
+            rx.box(width="5px", height="5px", border_radius="50%", background="limegreen"),
+            rx.box(width="5px", height="5px", border_radius="50%", background="red"),
         ),
-        rx.text(
-            rx.cond(State.backend_ok, "Backend: Online", "Backend: Offline"),
-            font_size="1em",
-            color="white",
-        ),
+        # rx.text(
+        #     rx.cond(State.backend_ok, "Backend: Online", "Backend: Offline"),
+        #     font_size="1em",
+        #     color="white",
+        # ),
         rx.cond(
             State.database_ok,
-            rx.box(width="10px", height="10px", border_radius="50%", background="green"),
-            rx.box(width="10px", height="10px", border_radius="50%", background="red"),
+            rx.box(width="5px", height="5px", border_radius="50%", background="limegreen"),
+            rx.box(width="5px", height="5px", border_radius="50%", background="red"),
         ),
-        rx.text(
-            rx.cond(State.database_ok, "DB: Online", "DB: Offline"),
-            font_size="1em",
-            color="white",
-        ),
+        # rx.text(
+        #     rx.cond(State.database_ok, "DB: Online", "DB: Offline"),
+        #     font_size="1em",
+        #     color="white",
+        # ),
         rx.cond(
             State.garage_ok,
-            rx.box(width="10px", height="10px", border_radius="50%", background="green"),
-            rx.box(width="10px", height="10px", border_radius="50%", background="red"),
+            rx.box(width="5px", height="5px", border_radius="50%", background="limegreen"),
+            rx.box(width="5px", height="5px", border_radius="50%", background="red"),
         ),
-        rx.text(
-            rx.cond(State.garage_ok, "Garage: Online", "Garage: Offline"),
-            font_size="1em",
-            color="white",
-        ),
+        # rx.text(
+        #     rx.cond(State.garage_ok, "Garage: Online", "Garage: Offline"),
+        #     font_size="1em",
+        #     color="white",
+        # ),
         spacing="2",
         align="center",
     )
@@ -409,6 +411,7 @@ def navbar():
         top="0",
         z_index="50",
         background="var(--gray-1)",
+        align="center"
     )
 
 def action_button(icon: str, label: str, dialog_func=None, click_func=None, disabled_condition=None, color_scheme=None):
@@ -875,7 +878,7 @@ def lightbox():
                                             "height": "auto",
                                         },
                                         custom_attrs={
-                                            "disablePictureInPicture": "true",
+                                            "disablePictureInPicture": True,
                                         },
                                     ),
                                 ),
@@ -937,7 +940,6 @@ def lightbox():
             on_click=State.close_lightbox,
         ),
     )
-
 
 def auth_guard(content: rx.Component) -> rx.Component:
     return rx.cond(
