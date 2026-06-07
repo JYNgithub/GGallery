@@ -17,7 +17,7 @@ services:
           memory: 1g
           cpus: "1.0"
     networks:
-      - app-net
+      - ggallery-network
   frontend:
     build:
       context: .
