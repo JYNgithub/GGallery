@@ -16,7 +16,8 @@ services:
         limits:
           memory: 1g
           cpus: "1.0"
-
+    networks:
+      - app-net
   frontend:
     build:
       context: .
@@ -34,3 +35,12 @@ services:
         limits:
           memory: 1g
           cpus: "1.0"
+    networks:
+      - ggallery-network
+
+networks:
+  ggallery-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
