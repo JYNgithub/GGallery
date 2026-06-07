@@ -10,11 +10,13 @@ from configuration import *
 
 # Load credentials
 load_dotenv("../.env")
-# load_dotenv()
 API_KEY = os.getenv("API_KEY")
 PIN_NUMBER = os.getenv("PIN_NUMBER")
-BACKEND_INTERNAL_URL = os.getenv("BACKEND_INTERNAL_URL")
-BACKEND_ENTRY = os.getenv("BACKEND_ENTRY")
+BACKEND_HOST = os.getenv("BACKEND_CONTAINER_NAME")
+BACKEND_PORT = os.getenv("BACKEND_PORT")
+BACKEND_CONTAINER_NAME = os.getenv("BACKEND_CONTAINER_NAME")
+BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
+BACKEND_INTERNAL_URL = f"http://{BACKEND_CONTAINER_NAME}:{BACKEND_PORT}"
 HEADERS = {"header_key": API_KEY}
 
 # Reflex's backend state management
@@ -133,7 +135,7 @@ class State(rx.State):
             return
         ext = filename.split('.')[-1].lower()
         if ext in IMAGE_EXTS:
-            self.loaded_urls[filename] = f"{BACKEND_ENTRY}/object/{filename}?query_key={API_KEY}"
+            self.loaded_urls[filename] = f"{BACKEND_URL}/object/{filename}?query_key={API_KEY}"
         elif ext in VIDEO_EXTS:
             self.loaded_urls[filename] = "__video__"
 
@@ -145,7 +147,7 @@ class State(rx.State):
                 res = requests.get(f"{BACKEND_INTERNAL_URL}/object/{filename}/stream-url", headers=HEADERS)
                 if res.status_code == 200:
                     stream_path = res.json()['url']
-                    full_url = f"{BACKEND_ENTRY}{stream_path}&query_key={API_KEY}"
+                    full_url = f"{BACKEND_URL}{stream_path}&query_key={API_KEY}"
                     self.selected_url = full_url
                 else:
                     self.selected_url = ""
@@ -264,7 +266,7 @@ class State(rx.State):
                     returned_key = res.json()["key"]
                     ext = returned_key.split('.')[-1].lower()
                     if ext in IMAGE_EXTS:
-                        url = f"{BACKEND_ENTRY}/object/{returned_key}?query_key={API_KEY}"
+                        url = f"{BACKEND_URL}/object/{returned_key}?query_key={API_KEY}"
                     elif ext in VIDEO_EXTS:
                         url = "__video__"
                     self.media_keys.insert(0, returned_key)

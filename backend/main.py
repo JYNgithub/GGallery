@@ -22,7 +22,6 @@ from configuration import *
 
 # Load credentials
 load_dotenv("../.env")
-# load_dotenv()
 API_KEY = os.getenv("API_KEY") # Backend access API key authentication
 SECRET_SIGNING_KEY = os.getenv("SECRET_SIGNING_KEY") # Secret key for signing URLs
 DB_SCHEMA = os.getenv("DB_SCHEMA")
@@ -39,46 +38,53 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down gracefully...")
     cursor.close()
     conn.close()
-    tunnel.stop()
+    if USE_SSH:
+        tunnel.stop()
     logger.info("All connections closed.")
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=[os.getenv("FRONTEND_ENTRY"), os.getenv("FRONTEND_URL")],
-    allow_origins=["*"],
+    allow_origins=["*"], # allow_origins=[os.getenv("FRONTEND_ENTRY")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize SSH tunnel
-tunnel = SSHTunnelForwarder(
-    os.getenv("SSH_HOST"),
-    ssh_username=os.getenv("SSH_USER"),
-    ssh_password=os.getenv("SSH_PASSWORD"),
-    remote_bind_addresses=[
-        (os.getenv("DB_HOST"), int(os.getenv("DB_PORT"))),  # Bind to Postgres
-        (os.getenv("GARAGE_HOST"), int(os.getenv("GARAGE_PORT"))),  # Bind to Garage
-    ]
-)
-tunnel.start()
+# Toggable SSH tunneling for database and Garage access
+USE_SSH = os.getenv("USE_SSH", "false").lower() == "true"
+if USE_SSH:
+    tunnel = SSHTunnelForwarder(
+        os.getenv("SSH_HOST"),
+        ssh_username=os.getenv("SSH_USER"),
+        ssh_password=os.getenv("SSH_PASSWORD"),
+        remote_bind_addresses=[
+            (os.getenv("DB_HOST"), int(os.getenv("DB_PORT"))),
+            (os.getenv("GARAGE_HOST"), int(os.getenv("GARAGE_PORT"))),
+        ]
+    )
+    tunnel.start()
+    db_port = tunnel.local_bind_ports[0]
+    garage_port = tunnel.local_bind_ports[1]
+else:
+    db_port = int(os.getenv("DB_PORT"))
+    garage_port = int(os.getenv("GARAGE_PORT"))
 
 # Initialize PostgreSQL connection
 conn = psycopg2.connect(
-    host=os.getenv("DB_HOST"),
-    port=tunnel.local_bind_ports[0],
+    host="127.0.0.1",
+    port=db_port,
     dbname=os.getenv("DB_NAME"),
     user=os.getenv("DB_USER"),
     password=os.getenv("DB_PASSWORD")
 )
 cursor = conn.cursor()
 
-# Initialize Garage S3 client
+# Initialize S3 client for Garage
 s3_client = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("GARAGE_KEY"),
     aws_secret_access_key=os.getenv("SECRET_GARAGE_KEY"),
-    endpoint_url=f"http://{os.getenv('GARAGE_HOST')}:{tunnel.local_bind_ports[1]}",
+    endpoint_url=f"http://127.0.0.1:{garage_port}",
     region_name="garage",
     config=Config(
         signature_version='s3v4',
@@ -90,36 +96,6 @@ def verify_api_key(header_api_key: str = Header(None, alias="header_key"), query
     if header_api_key == API_KEY or query_api_key == API_KEY:
         return
     raise HTTPException(status_code=401)
-
-def generate_signed_url(filename: str, expiry_minutes: int = 15) -> str:
-    """Generate temporary signed URL for secure streaming"""
-    expiry = datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes)
-    expiry_timestamp = int(expiry.timestamp())
-    
-    message = f"{filename}:{expiry_timestamp}"
-    signature = hmac.new(
-        SECRET_SIGNING_KEY.encode(),
-        message.encode(),
-        hashlib.sha256
-    ).hexdigest()
-    
-    return f"/stream/{filename}?expires={expiry_timestamp}&signature={signature}"
-
-def verify_signed_url(filename: str, expires: int, signature: str) -> bool:
-    """Verify signed URL is valid and not expired"""
-    # Check expiry
-    if datetime.now(timezone.utc).timestamp() > expires:
-        return False
-    
-    # Verify signature
-    message = f"{filename}:{expires}"
-    expected_signature = hmac.new(
-        SECRET_SIGNING_KEY.encode(),
-        message.encode(),
-        hashlib.sha256
-    ).hexdigest()
-    
-    return hmac.compare_digest(signature, expected_signature)
 
 # Write an object and metadata
 @app.post("/object/")
@@ -332,6 +308,47 @@ def update_tag(filename: str, tag_data: dict, _ = Security(verify_api_key)):
         conn.rollback()
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+ 
+# Initiate generation of signed URL for video streaming
+@app.get("/object/{filename}/stream-url")
+def get_stream_url(filename: str, _ = Security(verify_api_key)):
+    ext = filename.split('.')[-1].lower()
+    if ext not in MEDIA_TYPES:
+        raise HTTPException(status_code=415, detail=f"Unsupported file type")
+    
+    signed_url = generate_signed_url(filename)
+    return {"url": signed_url}
+
+# Generate signed URL for video streaming 
+def generate_signed_url(filename: str, expiry_minutes: int = 15) -> str:
+    expiry = datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes)
+    expiry_timestamp = int(expiry.timestamp())
+    
+    message = f"{filename}:{expiry_timestamp}"
+    signature = hmac.new(
+        SECRET_SIGNING_KEY.encode(),
+        message.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    
+    return f"/stream/{filename}?expires={expiry_timestamp}&signature={signature}"
+
+# Verify signed URL for video streaming
+def verify_signed_url(filename: str, expires: int, signature: str) -> bool:
+    """Verify signed URL is valid and not expired"""
+    # Check expiry
+    if datetime.now(timezone.utc).timestamp() > expires:
+        return False
+    
+    # Verify signature
+    message = f"{filename}:{expires}"
+    expected_signature = hmac.new(
+        SECRET_SIGNING_KEY.encode(),
+        message.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    
+    return hmac.compare_digest(signature, expected_signature)
 
 # Read video with streaming
 @app.get("/stream/{filename}")
@@ -393,17 +410,6 @@ def stream_object(
         logger.error(f"Streaming error: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-    
-# Add endpoint to generate signed URL
-@app.get("/object/{filename}/stream-url")
-def get_stream_url(filename: str, _ = Security(verify_api_key)):
-    """Generate temporary signed URL for streaming"""
-    ext = filename.split('.')[-1].lower()
-    if ext not in MEDIA_TYPES:
-        raise HTTPException(status_code=415, detail=f"Unsupported file type")
-    
-    signed_url = generate_signed_url(filename)
-    return {"url": signed_url}
 
 # Health check
 @app.get("/")
