@@ -63,16 +63,16 @@ if USE_SSH:
         ]
     )
     tunnel.start()
-    db_port = tunnel.local_bind_ports[0]
-    garage_port = tunnel.local_bind_ports[1]
+    DB_PORT = tunnel.local_bind_ports[0]
+    GARAGE_PORT = tunnel.local_bind_ports[1]
 else:
-    db_port = int(os.getenv("DB_PORT"))
-    garage_port = int(os.getenv("GARAGE_PORT"))
+    DB_PORT = int(os.getenv("DB_PORT"))
+    GARAGE_PORT = int(os.getenv("GARAGE_PORT"))
 
 # Initialize PostgreSQL connection
 conn = psycopg2.connect(
-    host="127.0.0.1",
-    port=db_port,
+    host="127.0.0.1" if USE_SSH else os.getenv("DB_HOST"),
+    port=DB_PORT,
     dbname=os.getenv("DB_NAME"),
     user=os.getenv("DB_USER"),
     password=os.getenv("DB_PASSWORD")
@@ -84,7 +84,7 @@ s3_client = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("GARAGE_KEY"),
     aws_secret_access_key=os.getenv("SECRET_GARAGE_KEY"),
-    endpoint_url=f"http://127.0.0.1:{garage_port}",
+    endpoint_url=f"http://127.0.0.1:{GARAGE_PORT}" if USE_SSH else f"http://{os.getenv('GARAGE_HOST')}:{GARAGE_PORT}",
     region_name="garage",
     config=Config(
         signature_version='s3v4',
