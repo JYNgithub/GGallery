@@ -12,7 +12,7 @@ from configuration import *
 load_dotenv("../.env")
 API_KEY = os.getenv("API_KEY")
 PIN_NUMBER = os.getenv("PIN_NUMBER")
-BACKEND_HOST = os.getenv("BACKEND_CONTAINER_NAME")
+BACKEND_HOST = os.getenv("BACKEND_HOST")
 BACKEND_PORT = os.getenv("BACKEND_PORT")
 BACKEND_CONTAINER_NAME = os.getenv("BACKEND_CONTAINER_NAME")
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
