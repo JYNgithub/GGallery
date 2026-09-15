@@ -6,7 +6,7 @@
 
 A self-hosted media gallery for personal photo and video storage. Designed with a decoupled architecture for scalability and efficient large-file media streaming for fast and organized personal media management.
 
-> **Note:** Full deployment documentation is still a work in progress. The app assumes you already have a PostgreSQL database and a [Garage](https://garagehq.deuxfleurs.fr/) S3-compatible object store running in your environment, accessible via SSH tunnel with the required credentials listed in a .env file.
+> **Note:** Full deployment documentation is still a work in progress. The app assumes you already have a PostgreSQL database and a [Garage](https://garagehq.deuxfleurs.fr/) S3-compatible object store running in your environment.
 
 ## Features
 
@@ -41,6 +41,6 @@ docker compose up --build
 
 ## Upcoming
 
-- Improved security updates
+- Improved security updates to fix flawed auth methods
 - Improved mobile experience
 
